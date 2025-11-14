@@ -181,7 +181,7 @@ def process_csv_to_kafka(csv_file_path, topic='bus-gps-tracking', max_records=No
 # =============================================================================
 # MAIN FUNCTION FOR TESTING
 # =============================================================================
-
+'''
 if __name__ == "__main__":
     """Main function để test producer"""
     
@@ -210,3 +210,4 @@ if __name__ == "__main__":
     else:
         print("TEST FAILED! Check Kafka connection.")
         sys.exit(1)
+'''
