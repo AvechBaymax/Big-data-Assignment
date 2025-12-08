@@ -113,7 +113,7 @@ def process_csv_to_kafka(csv_file_path, topic='bus-gps-tracking', max_records=No
                         'lng': float(row['lng']) if row['lng'] else None,
                         'lat': float(row['lat']) if row['lat'] else None,
                         'speed': float(row['speed']) if row['speed'] else None,
-                        'driver': float(row['driver']) if row['driver'] else None,
+                        'driver': row['driver'] if row['driver'] else None,
                         'door_up': row['door_up'].lower() == 'true' if row['door_up'] else False,
                         'door_down': row['door_down'].lower() == 'true' if row['door_down'] else False,
                     }
