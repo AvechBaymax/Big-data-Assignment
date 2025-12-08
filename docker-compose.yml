@@ -14,7 +14,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     ports:
-      - "9092:9092" # Main Kafka port - External access (chỉ cần port này!)
+      - "9092:9092"
     depends_on:
       - zookeeper
     environment:
@@ -74,20 +74,19 @@ services:
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     networks:
       - data-network
-
     volumes:
       - datanode:/hadoop/dfs/data
 
-  # 7. PostgreSQL Database
+  # 7. PostgreSQL Database (Downgraded to 13 for compatibility)
   postgres:
-    image: postgres:15
+    image: postgres:13
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_DB=bigdata_analytics
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=admin123
-      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+      # Removed SCRAM auth arg to ensure compatibility with older Hive drivers
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
@@ -99,7 +98,7 @@ services:
       timeout: 10s
       retries: 5
 
-  # 8. pgAdmin - PostgreSQL Management UI
+  # 8. pgAdmin
   pgadmin:
     image: dpage/pgadmin4:latest
     ports:
@@ -115,7 +114,41 @@ services:
     networks:
       - data-network
 
-# Định nghĩa volumes và network
+  # 9. Hive Metastore (FIXED IMAGE TAG)
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    environment:
+      - HIVE_SITE_CONF_javax_jdo_option_ConnectionURL=jdbc:postgresql://postgres:5432/metastore
+      - HIVE_SITE_CONF_javax_jdo_option_ConnectionDriverName=org.postgresql.Driver
+      - HIVE_SITE_CONF_javax_jdo_option_ConnectionUserName=hive
+      - HIVE_SITE_CONF_javax_jdo_option_ConnectionPassword=hive123
+      - HIVE_SITE_CONF_datanucleus_autoCreateSchema=false
+      - HIVE_SITE_CONF_hive_metastore_warehouse_dir=/user/hive/warehouse
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    depends_on:
+      - namenode
+      - datanode
+      - postgres
+    networks:
+      - data-network
+    ports:
+      - "9083:9083"
+    command: /opt/hive/bin/hive --service metastore
+
+  # 10. Trino
+  trino:
+    image: trinodb/trino:427
+    container_name: trino
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config/trino/catalog:/etc/trino/catalog
+    networks:
+      - data-network
+    depends_on:
+      - hive-metastore
+
 volumes:
   namenode:
   datanode:
