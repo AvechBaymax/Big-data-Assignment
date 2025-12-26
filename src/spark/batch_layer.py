@@ -9,7 +9,7 @@ and generate aggregated reports in PostgreSQL.
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, count, avg, max, min, sum, hour, date_format,
-    round as spark_round, when, lit
+    round as spark_round, when, lit, to_date
 )
 from pyspark.sql.types import (
     StructType, StructField, StringType, DoubleType,
@@ -95,8 +95,8 @@ def generate_daily_vehicle_summary(df, report_date):
             sum(when(col("door_down") == True, 1).otherwise(0)).alias("total_passengers_down"),
             count(when(col("speed") == 0, True)).alias("total_stops"),
         ) \
-        .withColumn("report_date", lit(report_date)) \
-        .withColumn("total_distance_km", col("total_events") * 0.01)  # Estimate
+        .withColumn("report_date", to_date(lit(report_date))) \
+        .withColumn("total_distance_km", col("total_events") * 0.01) \
         .withColumn("operating_hours", col("total_events") / 3600.0)
     
     return summary.select(
@@ -124,7 +124,7 @@ def generate_hourly_traffic_analysis(df, report_date):
             sum(when(col("door_up") == True, 1).otherwise(0) +
                 when(col("door_down") == True, 1).otherwise(0)).alias("total_door_events"),
         ) \
-        .withColumn("report_date", lit(report_date))
+        .withColumn("report_date", to_date(lit(report_date)))
     
     return hourly.select(
         "report_date",
@@ -148,7 +148,7 @@ def generate_driver_performance(df, report_date):
             max("speed").alias("max_speed"),
             count(when(col("speed") > 60, True)).alias("speeding_events"),
         ) \
-        .withColumn("report_date", lit(report_date)) \
+        .withColumn("report_date", to_date(lit(report_date))) \
         .withColumn("total_distance_km", col("total_events") * 0.01) \
         .withColumn("safety_score", 
             when(col("speeding_events") == 0, 100)
@@ -181,7 +181,7 @@ def generate_geo_hotspots(df, report_date):
             avg("speed").alias("avg_speed"),
         ) \
         .filter(col("total_events") > 10) \
-        .withColumn("report_date", lit(report_date)) \
+        .withColumn("report_date", to_date(lit(report_date))) \
         .withColumn("peak_hour", lit(8))  # Placeholder
     
     return hotspots.select(

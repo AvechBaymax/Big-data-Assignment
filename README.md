@@ -286,6 +286,158 @@ docker exec postgres psql -U admin -d bus_analytics -c \
   "SELECT COUNT(*) FROM bus_realtime_location;"
 ```
 
+### Demo SQL Queries for pgAdmin
+
+**Speed Layer Queries:**
+
+````sql
+-- 1. View current active buses
+SELECT
+    vehicle_id,
+    latitude,
+    longitude,
+    speed,
+    driver_id,
+    last_updated
+FROM bus_realtime_location
+ORDER BY last_updated DESC
+LIMIT 10;
+
+-- 2. Real-time fleet statistics
+SELECT
+    COUNT(*) as total_buses,
+    AVG(speed) as avg_speed,
+    MAX(speed) as max_speed,
+    COUNT(*) FILTER (WHERE speed > 0) as moving_buses
+FROM bus_realtime_location
+WHERE last_updated > NOW() - INTERVAL '5 minutes';
+
+-- 3. Recent tracking events
+SELECT
+    vehicle_id,
+    latitude,
+    longitude,
+    speed,
+    door_up,
+    door_down,
+    event_time
+FROM bus_tracking_stream
+ORDER BY event_time DESC
+LIMIT 20;
+
+
+**Batch Layer Queries:**
+
+```sql
+-- 5. Daily vehicle performance
+SELECT
+    vehicle_id,
+    total_distance_km,
+    avg_speed,
+    operating_hours,
+    total_stops
+FROM daily_vehicle_summary
+WHERE report_date = '2025-04-01'  -- Use actual data date
+ORDER BY total_distance_km DESC
+LIMIT 10;
+
+-- 6. Hourly traffic patterns
+SELECT
+    hour_of_day,
+    total_buses_active,
+    avg_speed,
+    total_door_events
+FROM hourly_traffic_analysis
+WHERE report_date = '2025-04-01'  -- Use actual data date
+ORDER BY hour_of_day;
+
+-- 7. Top performing drivers
+SELECT
+    driver_id,
+    total_distance_km,
+    avg_speed,
+    safety_score
+FROM driver_performance
+WHERE report_date = '2025-04-01'  -- Use actual data date
+ORDER BY safety_score DESC, total_distance_km DESC
+LIMIT 10;
+
+-- 8. Geographic hotspots
+SELECT
+    lat_bucket,
+    lng_bucket,
+    total_events,
+    avg_speed
+FROM geo_hotspots
+WHERE report_date = '2025-04-01'  -- Use actual data date
+ORDER BY total_events DESC
+LIMIT 15;
+````
+
+**Analytics Queries:**
+
+```sql
+-- 9. Speed distribution analysis
+SELECT
+    CASE
+        WHEN speed = 0 THEN 'Stopped'
+        WHEN speed BETWEEN 1 AND 20 THEN 'Slow (1-20 km/h)'
+        WHEN speed BETWEEN 21 AND 40 THEN 'Medium (21-40 km/h)'
+        WHEN speed BETWEEN 41 AND 60 THEN 'Fast (41-60 km/h)'
+        ELSE 'Very Fast (>60 km/h)'
+    END as speed_category,
+    COUNT(*) as count,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+FROM bus_tracking_stream
+WHERE event_time > NOW() - INTERVAL '1 hour'
+GROUP BY speed_category
+ORDER BY count DESC;
+
+-- 10. Busiest routes analysis
+SELECT
+    ROUND(latitude, 2) as lat_zone,
+    ROUND(longitude, 2) as lng_zone,
+    COUNT(DISTINCT vehicle_id) as unique_buses,
+    COUNT(*) as total_events,
+    AVG(speed) as avg_speed
+FROM bus_tracking_stream
+WHERE event_time > NOW() - INTERVAL '2 hours'
+GROUP BY lat_zone, lng_zone
+HAVING COUNT(*) > 10
+ORDER BY total_events DESC
+LIMIT 10;
+
+-- 11. Real-time system health
+SELECT
+    'Real-time Location' as table_name,
+    COUNT(*) as record_count,
+    MAX(last_updated) as latest_update
+FROM bus_realtime_location
+UNION ALL
+SELECT
+    'Tracking Stream',
+    COUNT(*),
+    MAX(event_time)
+FROM bus_tracking_stream
+UNION ALL
+SELECT
+    'Daily Summary',
+    COUNT(*),
+    MAX(report_date)::timestamp
+FROM daily_vehicle_summary;
+
+-- 12. Vehicle activity timeline
+SELECT
+    DATE_TRUNC('hour', event_time) as hour,
+    COUNT(DISTINCT vehicle_id) as active_buses,
+    COUNT(*) as total_events,
+    AVG(speed) as avg_speed
+FROM bus_tracking_stream
+WHERE event_time > NOW() - INTERVAL '24 hours'
+GROUP BY hour
+ORDER BY hour DESC;
+```
+
 ---
 
 ## 📈 Performance
@@ -321,3 +473,5 @@ docker-compose down -v
 ## 📝 License
 
 MIT License
+
+python src/spark/batch_layer.py data/samples/sample_medium_test.csv 2025-04-01
